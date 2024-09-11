@@ -196,11 +196,16 @@ def admin_libros_borrar():
     # Borrar registro
     conexion=mysql.connect()
     cursor=conexion.cursor()
-    cursor.execute("DELETE * FROM `libros` WHERE id=%s", (_id))
+    cursor.execute("DELETE FROM `libros` WHERE id=%s", (_id))
     conexion.commit()
 
     # Redireccionar a /admin/libros 
     return redirect('/admin/libros')
+
+# Crear una instancia para poder ejecutar nuestra aplicacion
+if __name__ == '__main__':
+    # Se utiliza el modo debug para que se muestrn los cambios
+    app.run(debug=True)
 
 # Crear una instancia para poder ejecutar nuestra aplicacion
 if __name__ == '__main__':

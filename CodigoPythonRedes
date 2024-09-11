@@ -1,0 +1,208 @@
+# Incluir el framework Flask 
+import os 
+from flask import Flask
+
+# Importar la plantilla HTML. Para guardar datos desde el formulario se importan: request, redirect y session
+from flask import render_template, request, redirect, session
+
+# Importar el enlace a base de datos MYSQL
+from flaskext.mysql import MySQL
+
+# Importar el controlador del tiempo
+from datetime import datetime
+
+#  IMportar para obtener informacion de la imagen 
+from flask import send_from_directory
+
+# Crear la aplicacion
+app=Flask(__name__)
+
+# Crear una llave secreta
+app.secret_key="dicresoft"
+
+# Crear una conexion a la base de datos
+mysql=MySQL() #llamar la base de datos
+
+app.config['MYSQL_DATABASE_HOST']='localhost'
+app.config['MYSQL_DATABASE_USER']='root'
+app.config['MYSQL_DATABASE_PASSWORD']=''
+app.config['MYSQL_DATABASE_DB']='sitio'
+
+# Agregar el valor para inicializar la aplicacion
+mysql.init_app(app)
+
+# Colocar la palabra clave (/) con la cual va a acceder a esa url, para indicarle cuando se solicite busque esa ruta y muestre el inicio
+@app.route('/')
+
+# Crear una funcion con la palabra reservada def
+def inicio():
+    # Retornar la ubicacion del template que se desea mostrar
+    return render_template('sitio/index.html')
+
+# Crear una ruta para mostrar la imagen
+@app.route('/img/<imagen>')
+def imagenes(imagen):
+    print(imagen)
+    return send_from_directory(os.path.join('templates/sitio/img'),imagen)
+
+# Crear una ruta para el tema con CSS
+@app.route('/css/<archivocss>')
+def css_link(archivocss):
+    return send_from_directory(os.path.join('templates/sitio/css'),archivocss)
+
+# Indicar que se abra otra pagina dentro del sitio
+@app.route('/nosotros')
+def nosotros():
+    # Retornar la ubicacion del template que se desea mostrar
+    return render_template('sitio/nosotros.html')
+
+# Indicar que se abra ora pagina dentro del sitio
+@app.route('/libros')
+def libros():
+    conexion=mysql.connect()
+    cursor=conexion.cursor()
+    cursor.execute('SELECT * FROM `libros`')
+    libros=cursor.fetchall()
+    conexion.commit()
+    print(libros)
+
+    return render_template('sitio/libros.html', libros=libros)
+
+
+# INCLUIR LAS PAGINAS DEL ADMIN
+# Indicar que se aba otra pagina dentro del sitio
+@app.route('/admin/')# Para que al crear el enlace a admin/libros no se duplique el admin(admn/admin/libros), se agrega un slash (/) al final
+def admin_index():
+    # Restringir el acceso si no hay login
+    if not 'login' in session:
+        return redirect('/admin/login')
+    
+    return render_template('admin/index.html')
+
+# Acceder al login
+@app.route('/admin/login')
+def admin_login():
+    return render_template('admin/login.html')
+
+# Enrutar el login al metodo POST
+@app.route('/admin/login',methods=['POST'])
+def admin_login_post():
+    _usuario=request.form['txtUsuario']
+    _password=request.form['txtPassword']
+    print(_usuario)
+    print(_password)
+
+    if _usuario=="admin" and _password=='123':
+        session["login"] = True
+        session["usuario"]= "Administrador"
+        return redirect('/admin')
+    
+    return render_template("admin/login.html", mensaje="Usuario o Contraseña inválido")
+
+# Limpiar las variables de session
+@app.route('/admin/cerrar')
+def admin_login_cerrar():
+    session.clear()
+    return redirect('/admin/login')
+
+@app.route('/admin/libros')
+def admin_libros():
+    # Restringir el acceso si no hay login
+    if not 'login' in session:
+        return redirect('/admin/login')
+    
+    # Realizar una conexion en admin/libros creando la variable conexion
+    conexion=mysql.connect()
+    # Realizar una consulta
+    cursor=conexion.cursor()
+    # Ejecutar la consulta
+    cursor.execute("SELECT * FROM `libros`")
+    # Para mostrar se debe crear una variable, y recuperar los valores de la BD con fetchall()
+    libros=cursor.fetchall()
+    conexion.commit()
+    print(libros)
+
+    # Pasar la informacion que est en libros
+    return render_template('admin/libros.html', libros=libros)
+
+# Recibir los datos creando una ruta
+@app.route('/admin/libros/guardar', methods=['POST'])
+def admin_libros_guardar():
+    # Restringir el acceso si no hay login
+    if not 'login' in session:
+        return redirect('/admin/login')
+    
+    # Poner un nombre para mostrarlo en la pantalla
+    _nombre=request.form['txtNombre']
+    _url=request.form['txtURL']
+    _archivo=request.files['txtImagen']
+
+    # Crear una variable para controlar el tiempo
+    tiempo=datetime.now()
+    horaActual=tiempo.strftime('%Y%H%M%S')
+
+    # Adjuntar archivo
+    if _archivo.filename!="":
+        nuevoNombre=horaActual+"_"+_archivo.filename
+        _archivo.save("templates/sitio/img/"+nuevoNombre)
+
+    # Crear una variable para crear la instruccion SQL
+    sql="INSERT INTO `libros` (`id`,`nombre`,`imagen`,`url`) VALUES (NULL, %s, %s, %s)"
+
+    # Crear una variable datos con los campos en el mismo orden de la BD
+    datos=(_nombre, nuevoNombre, _url)
+
+    # Abrir la conexion a la base de datos
+    conexion=mysql.connect()
+
+    # Crear un cursor para ejecutar la instruccion sql
+    cursor=conexion.cursor()
+
+    # Agregar datos a la ejecucion
+    cursor.execute(sql, datos)
+
+    # Realizar la conexion de toda la informacion
+    conexion.commit()
+
+    # Imprimir los valores
+    print(_nombre)
+    print(_url)
+    print(_archivo)
+
+    return redirect('/admin/libros')
+
+# Reseccionar a /admin/libros/borrar
+@app.route('/admin/libros/borrar', methods=['POST'])
+def admin_libros_borrar():
+    # Restringir el acceso si no hay login
+    if not 'login' in session:
+        return redirect('/admin/login')
+    
+    _id=request.form['txtID']
+    print(_id)
+
+    conexion=mysql.connect()
+    cursor=conexion.cursor()
+    cursor.execute("SELECT * FROM `libros` WHERE id=%s", (_id))
+    libro=cursor.fetchall()
+    conexion.commit()
+    print(libros)
+
+    # Verificar si la imagen existe'
+    if os.path.exists("templates/sitio/img/"+str(libro[0][0])):
+        # Si existe la imagen se le indica que elimine el registro
+        os.unlink("templates/sitio/img"+str(libro[0][0]))
+
+    # Borrar registro
+    conexion=mysql.connect()
+    cursor=conexion.cursor()
+    cursor.execute("DELETE * FROM `libros` WHERE id=%s", (_id))
+    conexion.commit()
+
+    # Redireccionar a /admin/libros 
+    return redirect('/admin/libros')
+
+# Crear una instancia para poder ejecutar nuestra aplicacion
+if __name__ == '__main__':
+    # Se utiliza el modo debug para que se muestrn los cambios
+    app.run(debug=True)
